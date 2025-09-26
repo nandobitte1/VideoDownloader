@@ -51,9 +51,9 @@
             <!-- URL Input Form -->
             <div class="flex flex-col sm:flex-row gap-3">
                 <input type="text" id="videoUrl" placeholder="https://..." class="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-300 flex-grow" aria-label="URL do Vídeo">
-                <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition duration-300 shadow-lg hover:shadow-blue-500/50">
-                    <i class="fas fa-download mr-2"></i>
-                    <span>Baixar</span>
+                <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition duration-300 shadow-lg hover:shadow-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="btn-text">Baixar</span>
+                    <i id="btn-icon" class="fas fa-download ml-2"></i>
                 </button>
             </div>
 
@@ -77,48 +77,58 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const videoUrlInput = document.getElementById('videoUrl');
         const statusDiv = document.getElementById('status');
+        const btnText = document.getElementById('btn-text');
+        const btnIcon = document.getElementById('btn-icon');
+        
+        // Define a URL do servidor. Mude aqui se for hospedar em outro lugar.
+        const API_URL = 'https://videodownloader-2i5e.onrender.com'; // <<< MUDE ESTA LINHA
 
-        downloadBtn.addEventListener('click', () => {
+        downloadBtn.addEventListener('click', async () => {
             const url = videoUrlInput.value.trim();
             if (!url) {
                 showStatus('Por favor, insira uma URL válida.', 'error');
                 return;
             }
-
-            // Simulação de chamada de API
+            
+            // Desabilita o botão e mostra o loading
+            setButtonLoading(true);
             showStatus('Analisando o link, por favor aguarde...', 'loading');
-            
-            // Em uma aplicação real, aqui você faria uma chamada para o seu back-end.
-            // O back-end usaria uma biblioteca como yt-dlp para processar a URL.
-            // Ex: fetch('/api/download', { method: 'POST', body: JSON.stringify({ url }) })
-            
-            setTimeout(() => {
-                // Simulação de resposta da API
-                if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                    showDownloadOptions({
-                        thumbnail: 'https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail+do+YouTube',
-                        title: 'Título do Vídeo do YouTube Simulado',
-                        formats: [
-                            { quality: '1080p', type: 'MP4', size: '95 MB' },
-                            { quality: '720p', type: 'MP4', size: '50 MB' },
-                            { quality: 'Áudio', type: 'MP3', size: '5 MB' },
-                        ]
-                    });
-                } else if (url.includes('instagram.com') || url.includes('tiktok.com') || url.includes('facebook.com')) {
-                     showDownloadOptions({
-                        thumbnail: 'https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail+do+Vídeo',
-                        title: 'Título do Vídeo da Rede Social',
-                        formats: [
-                            { quality: 'HD', type: 'MP4', size: '15 MB' },
-                            { quality: 'SD', type: 'MP4', size: '8 MB' }
-                        ]
-                    });
-                } 
-                else {
-                    showStatus('URL não parece ser de uma plataforma suportada ou é inválida.', 'error');
+
+            try {
+                // --- CHAMADA REAL PARA O BACK-END ---
+                const response = await fetch(`${API_URL}/api/video-info`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Erro desconhecido do servidor.');
                 }
-            }, 2500); // Simula o tempo de espera da rede
+                
+                const videoInfo = await response.json();
+                showDownloadOptions(videoInfo);
+
+            } catch (error) {
+                console.error("Fetch error:", error);
+                showStatus(error.message, 'error');
+            } finally {
+                // Reabilita o botão
+                setButtonLoading(false);
+            }
         });
+
+        function setButtonLoading(isLoading) {
+            downloadBtn.disabled = isLoading;
+            if (isLoading) {
+                btnText.textContent = 'Analisando...';
+                btnIcon.className = 'fas fa-spinner fa-spin ml-2';
+            } else {
+                btnText.textContent = 'Baixar';
+                btnIcon.className = 'fas fa-download ml-2';
+            }
+        }
 
         function showStatus(message, type = 'info') {
             let colorClass = 'text-gray-400';
@@ -138,25 +148,61 @@
             statusDiv.innerHTML = `<p class="${colorClass}">${icon}${message}</p>`;
         }
         
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes'
+            const k = 1024
+            const dm = decimals < 0 ? 0 : decimals
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+            const i = Math.floor(Math.log(bytes) / Math.log(k))
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+        }
+
         function showDownloadOptions(videoInfo) {
+            // Filtra e ordena os formatos. Vídeos primeiro, depois áudio, e por resolução.
+            const sortedFormats = videoInfo.formats
+                .filter(f => f.vcodec !== 'none' && f.resolution) // Apenas formatos de vídeo com resolução
+                .sort((a, b) => {
+                    const resA = parseInt(a.resolution.split('x')[1]);
+                    const resB = parseInt(b.resolution.split('x')[1]);
+                    return resB - resA;
+                });
+            
+            // Pega o melhor formato de áudio separado, se existir
+            const audioFormat = videoInfo.formats.find(f => f.vcodec === 'none' && f.acodec !== 'none');
+            
             statusDiv.innerHTML = `
                 <div class="bg-gray-700 p-4 rounded-lg text-left animate-fade-in">
                     <div class="flex flex-col sm:flex-row gap-4">
-                        <img src="${videoInfo.thumbnail}" alt="Thumbnail do vídeo" class="w-full sm:w-1/3 rounded-md object-cover">
+                        <img src="${videoInfo.thumbnail}" alt="Thumbnail do vídeo" class="w-full sm:w-1/3 rounded-md object-cover" onerror="this.src='https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail'">
                         <div class="flex-grow">
                             <h3 class="font-bold text-lg mb-3">${videoInfo.title}</h3>
                             <div class="space-y-2">
-                                ${videoInfo.formats.map(format => `
-                                    <div class="flex justify-between items-center bg-gray-600 p-3 rounded-md">
+                                ${sortedFormats.map(format => `
+                                    <a href="${API_URL}/api/download?url=${encodeURIComponent(videoInfo.originalUrl)}&formatId=${format.format_id}" 
+                                       target="_blank" 
+                                       class="flex justify-between items-center bg-gray-600 hover:bg-gray-500 p-3 rounded-md transition duration-300">
                                         <div>
-                                            <span class="font-semibold text-white">${format.quality}</span>
-                                            <span class="text-sm text-gray-400 ml-2">${format.type} - ${format.size}</span>
+                                            <span class="font-semibold text-white">${format.resolution.split('x')[1]}p</span>
+                                            <span class="text-sm text-gray-400 ml-2">${format.ext.toUpperCase()} - ${format.filesize ? formatBytes(format.filesize) : 'N/A'}</span>
                                         </div>
-                                        <button class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300" onclick="alert('Iniciando download (simulação)...')">
+                                        <div class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md">
                                             <i class="fas fa-download mr-1"></i> Baixar
-                                        </button>
-                                    </div>
+                                        </div>
+                                    </a>
                                 `).join('')}
+                                ${audioFormat ? `
+                                    <a href="${API_URL}/api/download?url=${encodeURIComponent(videoInfo.originalUrl)}&formatId=${audioFormat.format_id}" 
+                                       target="_blank" 
+                                       class="flex justify-between items-center bg-gray-600 hover:bg-gray-500 p-3 rounded-md transition duration-300">
+                                        <div>
+                                            <span class="font-semibold text-white">Áudio</span>
+                                            <span class="text-sm text-gray-400 ml-2">${audioFormat.ext.toUpperCase()} - ${audioFormat.filesize ? formatBytes(audioFormat.filesize) : 'N/A'}</span>
+                                        </div>
+                                        <div class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md">
+                                            <i class="fas fa-music mr-1"></i> Baixar MP3
+                                        </div>
+                                    </a>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
@@ -164,7 +210,6 @@
             `;
         }
 
-        // Adiciona um estilo para a animação de fade-in
         const style = document.createElement('style');
         style.innerHTML = `
             @keyframes fade-in {
@@ -180,3 +225,4 @@
     </script>
 </body>
 </html>
+
