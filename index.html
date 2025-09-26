@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader - Baixe Vídeos Facilmente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .platform-icon {
+            transition: all 0.3s ease;
+        }
+        .platform-icon:hover {
+            transform: scale(1.1);
+            filter: brightness(1.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Video Downloader Pro</h1>
+            <p class="text-gray-400 text-lg">Cole o link do vídeo de qualquer plataforma e baixe com um clique.</p>
+        </header>
+
+        <main class="bg-gray-800 p-6 md:p-8 rounded-2xl shadow-2xl shadow-blue-500/10">
+            <!-- Supported Platforms Icons -->
+            <div class="flex justify-center items-center space-x-4 md:space-x-6 mb-6">
+                <div title="YouTube" class="platform-icon text-red-600 bg-gray-700 p-3 rounded-full cursor-pointer">
+                    <i class="fab fa-youtube fa-2x"></i>
+                </div>
+                <div title="Facebook" class="platform-icon text-blue-600 bg-gray-700 p-3 rounded-full cursor-pointer">
+                    <i class="fab fa-facebook fa-2x"></i>
+                </div>
+                <div title="Instagram" class="platform-icon text-pink-500 bg-gray-700 p-3 rounded-full cursor-pointer">
+                    <i class="fab fa-instagram fa-2x"></i>
+                </div>
+                <div title="TikTok" class="platform-icon text-cyan-400 bg-gray-700 p-3 rounded-full cursor-pointer">
+                    <i class="fab fa-tiktok fa-2x"></i>
+                </div>
+                 <div title="X (Twitter)" class="platform-icon text-white bg-gray-700 p-3 rounded-full cursor-pointer">
+                    <i class="fab fa-twitter fa-2x"></i>
+                </div>
+            </div>
+
+            <!-- URL Input Form -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="videoUrl" placeholder="https://..." class="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-300 flex-grow" aria-label="URL do Vídeo">
+                <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition duration-300 shadow-lg hover:shadow-blue-500/50">
+                    <i class="fas fa-download mr-2"></i>
+                    <span>Baixar</span>
+                </button>
+            </div>
+
+            <!-- Results/Status Section -->
+            <div id="status" class="mt-6 text-center">
+                <!-- Status messages will be shown here -->
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="mt-8 text-center text-xs text-gray-500">
+                <p><i class="fas fa-exclamation-triangle mr-1"></i> Lembre-se de respeitar os direitos autorais e os termos de serviço das plataformas. Este serviço deve ser usado apenas para baixar seus próprios vídeos ou vídeos com permissão explícita para download.</p>
+            </div>
+        </main>
+
+        <footer class="text-center mt-8 text-gray-600">
+            <p>Criado com <i class="fas fa-heart text-red-500"></i> para fins demonstrativos.</p>
+        </footer>
+    </div>
+
+    <script>
+        const downloadBtn = document.getElementById('downloadBtn');
+        const videoUrlInput = document.getElementById('videoUrl');
+        const statusDiv = document.getElementById('status');
+
+        downloadBtn.addEventListener('click', () => {
+            const url = videoUrlInput.value.trim();
+            if (!url) {
+                showStatus('Por favor, insira uma URL válida.', 'error');
+                return;
+            }
+
+            // Simulação de chamada de API
+            showStatus('Analisando o link, por favor aguarde...', 'loading');
+            
+            // Em uma aplicação real, aqui você faria uma chamada para o seu back-end.
+            // O back-end usaria uma biblioteca como yt-dlp para processar a URL.
+            // Ex: fetch('/api/download', { method: 'POST', body: JSON.stringify({ url }) })
+            
+            setTimeout(() => {
+                // Simulação de resposta da API
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    showDownloadOptions({
+                        thumbnail: 'https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail+do+YouTube',
+                        title: 'Título do Vídeo do YouTube Simulado',
+                        formats: [
+                            { quality: '1080p', type: 'MP4', size: '95 MB' },
+                            { quality: '720p', type: 'MP4', size: '50 MB' },
+                            { quality: 'Áudio', type: 'MP3', size: '5 MB' },
+                        ]
+                    });
+                } else if (url.includes('instagram.com') || url.includes('tiktok.com') || url.includes('facebook.com')) {
+                     showDownloadOptions({
+                        thumbnail: 'https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail+do+Vídeo',
+                        title: 'Título do Vídeo da Rede Social',
+                        formats: [
+                            { quality: 'HD', type: 'MP4', size: '15 MB' },
+                            { quality: 'SD', type: 'MP4', size: '8 MB' }
+                        ]
+                    });
+                } 
+                else {
+                    showStatus('URL não parece ser de uma plataforma suportada ou é inválida.', 'error');
+                }
+            }, 2500); // Simula o tempo de espera da rede
+        });
+
+        function showStatus(message, type = 'info') {
+            let colorClass = 'text-gray-400';
+            let icon = '';
+
+            if (type === 'error') {
+                colorClass = 'text-red-400';
+                icon = '<i class="fas fa-times-circle mr-2"></i>';
+            } else if (type === 'success') {
+                colorClass = 'text-green-400';
+                icon = '<i class="fas fa-check-circle mr-2"></i>';
+            } else if (type === 'loading') {
+                colorClass = 'text-blue-400';
+                icon = '<i class="fas fa-spinner fa-spin mr-2"></i>';
+            }
+
+            statusDiv.innerHTML = `<p class="${colorClass}">${icon}${message}</p>`;
+        }
+        
+        function showDownloadOptions(videoInfo) {
+            statusDiv.innerHTML = `
+                <div class="bg-gray-700 p-4 rounded-lg text-left animate-fade-in">
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <img src="${videoInfo.thumbnail}" alt="Thumbnail do vídeo" class="w-full sm:w-1/3 rounded-md object-cover">
+                        <div class="flex-grow">
+                            <h3 class="font-bold text-lg mb-3">${videoInfo.title}</h3>
+                            <div class="space-y-2">
+                                ${videoInfo.formats.map(format => `
+                                    <div class="flex justify-between items-center bg-gray-600 p-3 rounded-md">
+                                        <div>
+                                            <span class="font-semibold text-white">${format.quality}</span>
+                                            <span class="text-sm text-gray-400 ml-2">${format.type} - ${format.size}</span>
+                                        </div>
+                                        <button class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300" onclick="alert('Iniciando download (simulação)...')">
+                                            <i class="fas fa-download mr-1"></i> Baixar
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Adiciona um estilo para a animação de fade-in
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fade-in {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .animate-fade-in {
+                animation: fade-in 0.5s ease-out forwards;
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+</body>
+</html>
