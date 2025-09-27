@@ -2,14 +2,21 @@ const express = require('express');
 const cors = require('cors');
 const { exec } = require('child_process');
 
-console.log("Iniciando o ficheiro server.js (Versão Final e Verificada)...");
+console.log("Iniciando o ficheiro server.js (Versão Definitiva)...");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Ativa o CORS para todas as origens.
-app.use(cors());
-console.log("Middleware de CORS ativado.");
+// --- CONFIGURAÇÃO DE CORS ROBUSTA E EXPLÍCITA ---
+const corsOptions = {
+  origin: '*', // Permite qualquer origem (como o seu site no Netlify)
+  methods: 'GET,POST', // Permite os métodos que usamos
+  optionsSuccessStatus: 200 // Responde com sucesso às "perguntas de segurança" (preflight)
+};
+
+// Ativa o CORS com as opções robustas
+app.use(cors(corsOptions));
+console.log("Middleware de CORS robusto ativado.");
 
 app.use(express.json());
 console.log("Middleware express.json configurado.");
@@ -35,7 +42,11 @@ app.post('/api/video-info', (req, res) => {
         }
 
         try {
-            const videoInfo = JSON.parse(stdout);
+            // A saída do yt-dlp pode ter várias linhas, o JSON é geralmente a última
+            const lines = stdout.trim().split('\n');
+            const jsonLine = lines[lines.length - 1];
+            const videoInfo = JSON.parse(jsonLine);
+            
             console.log(`Informações obtidas para: ${videoInfo.title}`);
             res.json({
                 title: videoInfo.title,
@@ -57,14 +68,23 @@ app.get('/api/download', (req, res) => {
     }
     const filename = `video_${Date.now()}.mp4`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    ytdlp.exec(url, {
-        format: formatId,
-        output: '-',
-    }).stdout.pipe(res);
+    
+    // Usando exec para a rota de download também para consistência
+    const command = `yt-dlp -f "${formatId}" -o - "${url}"`;
+    const child = exec(command);
+
+    child.stdout.pipe(res);
+
+    child.stderr.on('data', (data) => {
+        console.error(`yt-dlp (download) stderr: ${data}`);
+    });
+
+    res.on('close', () => {
+        child.kill();
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    // ESTA É A NOSSA PROVA FINAL
-    console.log(`Servidor iniciado com SUCESSO e com a correção de CORS V2! Porta: ${PORT}`);
+    console.log(`Servidor iniciado com SUCESSO na porta ${PORT} com a configuração de CORS final.`);
 });
 
