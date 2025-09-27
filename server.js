@@ -1,95 +1,81 @@
-// server.js Corrigido
-
 const express = require('express');
 const cors = require('cors');
-// Importa a biblioteca yt-dlp-exec em vez de 'child_process'
-const ytdlp = require('yt-dlp-exec');
+const { exec } = require('child_process');
+
+// Log para confirmar que o ficheiro está a ser executado
+console.log("Iniciando o ficheiro server.js...");
 
 const app = express();
-// O Render define a porta automaticamente, por isso é importante usar process.env.PORT
+// Lê a porta da variável de ambiente do Railway, ou usa 4000 como padrão
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
 
-// Rota principal para verificar se o servidor está online
+console.log("Middleware (cors, express.json) configurado.");
+
+// Rota de teste para verificar se o servidor está no ar
 app.get('/', (req, res) => {
+    console.log("Recebida requisição na rota raiz '/'.");
     res.send('Servidor do Video Downloader está no ar!');
 });
 
-// Rota para obter as informações do vídeo
-app.post('/api/video-info', async (req, res) => {
-    const { url } = req.body;
-    console.log(`Recebido pedido para obter informações do vídeo: ${url}`);
+app.post('/api/video-info', (req, res) => {
+    const videoUrl = req.body.url;
+    console.log(`[${new Date().toISOString()}] Recebida requisição para a URL: ${videoUrl}`);
 
-    if (!url) {
+    if (!videoUrl) {
+        console.error("Erro: Nenhuma URL foi fornecida na requisição.");
         return res.status(400).json({ error: 'URL do vídeo é obrigatória.' });
     }
 
-    try {
-        // Usa a biblioteca para obter os metadados do vídeo em formato JSON
-        const metadata = await ytdlp(url, {
-            dumpSingleJson: true,
-            noWarnings: true,
-            skipDownload: true,
-            preferFreeFormats: true,
-        });
+    // Comando para obter os metadados do vídeo como JSON
+    const command = `yt-dlp --dump-json "${videoUrl}"`;
+    console.log(`Executando comando: ${command}`);
 
-        // Filtra e formata os dados para enviar ao frontend
-        const formats = metadata.formats.map(f => ({
-            format_id: f.format_id,
-            ext: f.ext,
-            resolution: f.resolution || 'audio',
-            filesize: f.filesize,
-            acodec: f.acodec,
-            vcodec: f.vcodec
-        })).filter(f => (f.vcodec !== 'none' || f.acodec !== 'none')); // Garante que tem vídeo ou áudio
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Erro ao executar o comando yt-dlp: ${error.message}`);
+            console.error(`Stderr: ${stderr}`);
+            // Envia uma resposta de erro mais detalhada para depuração
+            return res.status(500).json({ error: 'Falha ao buscar informações do vídeo.', details: stderr || error.message });
+        }
 
-        const videoInfo = {
-            title: metadata.title,
-            thumbnail: metadata.thumbnail,
-            duration: metadata.duration_string,
-            formats: formats,
-            // Envia a URL original de volta para ser usada nos links de download
-            originalUrl: url 
-        };
+        try {
+            // A saída pode conter múltiplas linhas de JSON, pegamos a última
+            const lines = stdout.trim().split('\n');
+            const lastLine = lines[lines.length - 1];
+            const videoInfo = JSON.parse(lastLine);
+            
+            console.log(`Informações do vídeo obtidas com sucesso para: ${videoInfo.title}`);
 
-        res.json(videoInfo);
-        console.log("Informações do vídeo enviadas com sucesso.");
+            const formats = videoInfo.formats
+                .filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && f.ext === 'mp4')
+                .map(f => ({
+                    quality: f.format_note || `${f.height}p`,
+                    url: f.url,
+                    ext: f.ext,
+                }))
+                .reverse(); 
 
-    } catch (error) {
-        console.error("Erro ao obter informações do vídeo:", error.message);
-        res.status(500).json({ error: 'Falha ao buscar informações do vídeo. Verifique se o link está correto.' });
-    }
+            // Remove duplicados de qualidade, mantendo o melhor
+            const uniqueFormats = Array.from(new Map(formats.map(item => [item['quality'], item])).values());
+
+            res.json({
+                title: videoInfo.title,
+                thumbnail: videoInfo.thumbnail,
+                formats: uniqueFormats,
+            });
+        } catch (parseError) {
+            console.error(`Erro ao fazer o parse da saída do yt-dlp: ${parseError.message}`);
+            console.error(`Saída recebida (stdout): ${stdout}`);
+            res.status(500).json({ error: 'Falha ao processar as informações do vídeo.', details: stdout });
+        }
+    });
 });
 
-// Rota para iniciar o download do vídeo (ESTA ROTA ESTAVA EM FALTA)
-app.get('/api/download', (req, res) => {
-    const { url, formatId } = req.query;
-
-    if (!url || !formatId) {
-        return res.status(400).send('URL e ID do formato são obrigatórios.');
-    }
-
-    console.log(`Iniciando download para URL: ${url} com formato: ${formatId}`);
-
-    try {
-        // Configura os cabeçalhos para forçar o download no navegador
-        res.header('Content-Disposition', 'attachment; filename="video.mp4"');
-
-        // Executa o yt-dlp e transmite a saída (o vídeo) diretamente para a resposta
-        // Isso evita ter que salvar o vídeo no servidor primeiro, economizando espaço e tempo
-        ytdlp.exec(url, {
-            format: formatId,
-            output: '-', // '-' significa para enviar para a saída padrão (stdout)
-        }).stdout.pipe(res);
-
-    } catch (error) {
-        console.error("Erro durante o download:", error);
-        res.status(500).send('Ocorreu um erro ao tentar baixar o vídeo.');
-    }
+// O servidor deve ouvir em '0.0.0.0' para ser acessível em ambientes de container
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor iniciado com sucesso e ouvindo na porta ${PORT}.`);
 });
 
-app.listen(PORT, () => {
-    console.log(`Servidor iniciado com sucesso na porta ${PORT}.`);
-});
