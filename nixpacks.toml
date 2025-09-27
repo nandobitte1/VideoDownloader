@@ -8,4 +8,6 @@ nixPkgs = ["python3", "yt-dlp"]
 cmds = ["npm install"]
 
 [phases.start]
-cmd = "npm start"
+# Corrigido para apontar diretamente para o nosso ficheiro de servidor
+cmd = "node server.js"
+
