@@ -76,4 +76,14 @@ app.post('/api/video-info', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor iniciado com sucesso na porta ${PORT}.`);
 });
+```
+
+**Passo 2: Envie para o GitHub (da forma mais fácil)**
+
+Abra o seu terminal na pasta do projeto e execute estes três comandos, um de cada vez. O segundo comando evita o editor de texto.
+
+```bash
+git add .
+git commit -m "Implementando a correção final do CORS"
+git push origin master
 
