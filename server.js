@@ -1,78 +1,95 @@
-console.log("Iniciando o arquivo server.js...");
+// server.js Corrigido
 
 const express = require('express');
 const cors = require('cors');
-// Importa a função 'exec' para executar comandos de terminal
-const { exec } = require('child_process');
-
-console.log("Bibliotecas importadas com sucesso.");
+// Importa a biblioteca yt-dlp-exec em vez de 'child_process'
+const ytdlp = require('yt-dlp-exec');
 
 const app = express();
+// O Render define a porta automaticamente, por isso é importante usar process.env.PORT
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
 
-console.log("Express e CORS configurados.");
-
+// Rota principal para verificar se o servidor está online
 app.get('/', (req, res) => {
-    console.log("Rota raiz ('/') acedida.");
     res.send('Servidor do Video Downloader está no ar!');
 });
 
-app.post('/api/video-info', (req, res) => {
+// Rota para obter as informações do vídeo
+app.post('/api/video-info', async (req, res) => {
     const { url } = req.body;
     console.log(`Recebido pedido para obter informações do vídeo: ${url}`);
 
     if (!url) {
-        console.error("Erro: URL não fornecida no pedido.");
-        return res.status(400).json({ success: false, error: 'URL do vídeo é obrigatória.' });
+        return res.status(400).json({ error: 'URL do vídeo é obrigatória.' });
     }
 
-    // Comando de terminal para executar o yt-dlp
-    // As flags são as mesmas, mas agora passadas como uma string de comando
-    const command = `yt-dlp "${url}" --dump-single-json --no-warnings --skip-download --prefer-free-formats`;
+    try {
+        // Usa a biblioteca para obter os metadados do vídeo em formato JSON
+        const metadata = await ytdlp(url, {
+            dumpSingleJson: true,
+            noWarnings: true,
+            skipDownload: true,
+            preferFreeFormats: true,
+        });
 
-    console.log(`A executar comando: ${command}`);
+        // Filtra e formata os dados para enviar ao frontend
+        const formats = metadata.formats.map(f => ({
+            format_id: f.format_id,
+            ext: f.ext,
+            resolution: f.resolution || 'audio',
+            filesize: f.filesize,
+            acodec: f.acodec,
+            vcodec: f.vcodec
+        })).filter(f => (f.vcodec !== 'none' || f.acodec !== 'none')); // Garante que tem vídeo ou áudio
 
-    exec(command, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Erro ao executar o comando exec: ${error.message}`);
-            console.error(`stderr: ${stderr}`);
-            return res.status(500).json({ success: false, error: `Falha ao executar o yt-dlp. Detalhes: ${stderr || error.message}` });
-        }
+        const videoInfo = {
+            title: metadata.title,
+            thumbnail: metadata.thumbnail,
+            duration: metadata.duration_string,
+            formats: formats,
+            // Envia a URL original de volta para ser usada nos links de download
+            originalUrl: url 
+        };
 
-        try {
-            console.log("Comando executado com sucesso. A processar a saída...");
-            const metadata = JSON.parse(stdout);
+        res.json(videoInfo);
+        console.log("Informações do vídeo enviadas com sucesso.");
 
-            const formats = metadata.formats.map(f => ({
-                format_id: f.format_id,
-                ext: f.ext,
-                resolution: f.resolution || 'audio',
-                filesize: f.filesize,
-                url: f.url,
-                acodec: f.acodec,
-                vcodec: f.vcodec
-            })).filter(f => f.url && (f.vcodec !== 'none' || f.acodec !== 'none'));
-
-            const videoInfo = {
-                title: metadata.title,
-                thumbnail: metadata.thumbnail,
-                duration: metadata.duration_string,
-                formats: formats
-            };
-
-            res.json({ success: true, videoInfo });
-            console.log("Informações do vídeo enviadas com sucesso.");
-        } catch (parseError) {
-            console.error("Erro ao processar a saída JSON do yt-dlp:", parseError);
-            res.status(500).json({ success: false, error: 'Falha ao processar a resposta do serviço de vídeo.' });
-        }
-    });
+    } catch (error) {
+        console.error("Erro ao obter informações do vídeo:", error.message);
+        res.status(500).json({ error: 'Falha ao buscar informações do vídeo. Verifique se o link está correto.' });
+    }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor iniciado com sucesso e a ouvir na porta ${PORT}.`);
+// Rota para iniciar o download do vídeo (ESTA ROTA ESTAVA EM FALTA)
+app.get('/api/download', (req, res) => {
+    const { url, formatId } = req.query;
+
+    if (!url || !formatId) {
+        return res.status(400).send('URL e ID do formato são obrigatórios.');
+    }
+
+    console.log(`Iniciando download para URL: ${url} com formato: ${formatId}`);
+
+    try {
+        // Configura os cabeçalhos para forçar o download no navegador
+        res.header('Content-Disposition', 'attachment; filename="video.mp4"');
+
+        // Executa o yt-dlp e transmite a saída (o vídeo) diretamente para a resposta
+        // Isso evita ter que salvar o vídeo no servidor primeiro, economizando espaço e tempo
+        ytdlp.exec(url, {
+            format: formatId,
+            output: '-', // '-' significa para enviar para a saída padrão (stdout)
+        }).stdout.pipe(res);
+
+    } catch (error) {
+        console.error("Erro durante o download:", error);
+        res.status(500).send('Ocorreu um erro ao tentar baixar o vídeo.');
+    }
 });
 
+app.listen(PORT, () => {
+    console.log(`Servidor iniciado com sucesso na porta ${PORT}.`);
+});
