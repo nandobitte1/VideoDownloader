@@ -2,22 +2,25 @@ const express = require('express');
 const cors = require('cors');
 const { exec } = require('child_process');
 
-// Log para confirmar que o ficheiro está a ser executado
+// Log inicial para confirmar a execução
 console.log("Iniciando o ficheiro server.js...");
 
 const app = express();
-// Lê a porta da variável de ambiente do Railway, ou usa 4000 como padrão
 const PORT = process.env.PORT || 4000;
 
+// --- CORREÇÃO DE CORS ---
+// Ativa o CORS para todas as origens. Isto deve ser uma das primeiras coisas.
 app.use(cors());
+console.log("CORS ativado para todas as origens.");
+
+// Outros middlewares
 app.use(express.json());
+console.log("Middleware express.json configurado.");
 
-console.log("Middleware (cors, express.json) configurado.");
-
-// Rota de teste para verificar se o servidor está no ar
+// Rota de teste
 app.get('/', (req, res) => {
     console.log("Recebida requisição na rota raiz '/'.");
-    res.send('Servidor do Video Downloader está no ar!');
+    res.send('Servidor do Video Downloader está no ar e com CORS ativado!');
 });
 
 app.post('/api/video-info', (req, res) => {
@@ -25,29 +28,26 @@ app.post('/api/video-info', (req, res) => {
     console.log(`[${new Date().toISOString()}] Recebida requisição para a URL: ${videoUrl}`);
 
     if (!videoUrl) {
-        console.error("Erro: Nenhuma URL foi fornecida na requisição.");
+        console.error("Erro: Nenhuma URL foi fornecida.");
         return res.status(400).json({ error: 'URL do vídeo é obrigatória.' });
     }
 
-    // Comando para obter os metadados do vídeo como JSON
     const command = `yt-dlp --dump-json "${videoUrl}"`;
     console.log(`Executando comando: ${command}`);
 
     exec(command, (error, stdout, stderr) => {
         if (error) {
-            console.error(`Erro ao executar o comando yt-dlp: ${error.message}`);
+            console.error(`Erro ao executar yt-dlp: ${error.message}`);
             console.error(`Stderr: ${stderr}`);
-            // Envia uma resposta de erro mais detalhada para depuração
             return res.status(500).json({ error: 'Falha ao buscar informações do vídeo.', details: stderr || error.message });
         }
 
         try {
-            // A saída pode conter múltiplas linhas de JSON, pegamos a última
             const lines = stdout.trim().split('\n');
             const lastLine = lines[lines.length - 1];
             const videoInfo = JSON.parse(lastLine);
             
-            console.log(`Informações do vídeo obtidas com sucesso para: ${videoInfo.title}`);
+            console.log(`Informações obtidas para: ${videoInfo.title}`);
 
             const formats = videoInfo.formats
                 .filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && f.ext === 'mp4')
@@ -58,7 +58,6 @@ app.post('/api/video-info', (req, res) => {
                 }))
                 .reverse(); 
 
-            // Remove duplicados de qualidade, mantendo o melhor
             const uniqueFormats = Array.from(new Map(formats.map(item => [item['quality'], item])).values());
 
             res.json({
@@ -67,15 +66,14 @@ app.post('/api/video-info', (req, res) => {
                 formats: uniqueFormats,
             });
         } catch (parseError) {
-            console.error(`Erro ao fazer o parse da saída do yt-dlp: ${parseError.message}`);
+            console.error(`Erro ao processar JSON: ${parseError.message}`);
             console.error(`Saída recebida (stdout): ${stdout}`);
             res.status(500).json({ error: 'Falha ao processar as informações do vídeo.', details: stdout });
         }
     });
 });
 
-// O servidor deve ouvir em '0.0.0.0' para ser acessível em ambientes de container
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor iniciado com sucesso e ouvindo na porta ${PORT}.`);
+    console.log(`Servidor iniciado com sucesso na porta ${PORT}.`);
 });
 
