@@ -2,7 +2,8 @@ console.log("Iniciando o arquivo server.js...");
 
 const express = require('express');
 const cors = require('cors');
-const ytdlp = require('yt-dlp-exec');
+// Importa a função 'exec' para executar comandos de terminal
+const { exec } = require('child_process');
 
 console.log("Bibliotecas importadas com sucesso.");
 
@@ -14,14 +15,12 @@ app.use(express.json());
 
 console.log("Express e CORS configurados.");
 
-// Endpoint para verificar se o servidor está no ar
 app.get('/', (req, res) => {
     console.log("Rota raiz ('/') acedida.");
     res.send('Servidor do Video Downloader está no ar!');
 });
 
-// Endpoint para obter informações do vídeo
-app.post('/api/video-info', async (req, res) => {
+app.post('/api/video-info', (req, res) => {
     const { url } = req.body;
     console.log(`Recebido pedido para obter informações do vídeo: ${url}`);
 
@@ -30,40 +29,47 @@ app.post('/api/video-info', async (req, res) => {
         return res.status(400).json({ success: false, error: 'URL do vídeo é obrigatória.' });
     }
 
-    try {
-        console.log("A executar o yt-dlp para obter metadados...");
-        const metadata = await ytdlp(url, {
-            dumpSingleJson: true,
-            noWarnings: true,
-            skipDownload: true,
-            preferFreeFormats: true,
-        });
-        console.log("Metadados obtidos com sucesso.");
+    // Comando de terminal para executar o yt-dlp
+    // As flags são as mesmas, mas agora passadas como uma string de comando
+    const command = `yt-dlp "${url}" --dump-single-json --no-warnings --skip-download --prefer-free-formats`;
 
-        const formats = metadata.formats.map(f => ({
-            format_id: f.format_id,
-            ext: f.ext,
-            resolution: f.resolution || 'audio',
-            fps: f.fps,
-            filesize: f.filesize,
-            tbr: f.tbr,
-            url: f.url,
-            acodec: f.acodec,
-            vcodec: f.vcodec
-        })).filter(f => f.url && (f.vcodec !== 'none' || f.acodec !== 'none'));
+    console.log(`A executar comando: ${command}`);
 
-        const videoInfo = {
-            title: metadata.title,
-            thumbnail: metadata.thumbnail,
-            duration: metadata.duration_string,
-            formats: formats
-        };
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Erro ao executar o comando exec: ${error.message}`);
+            console.error(`stderr: ${stderr}`);
+            return res.status(500).json({ success: false, error: `Falha ao executar o yt-dlp. Detalhes: ${stderr || error.message}` });
+        }
 
-        res.json({ success: true, videoInfo });
-    } catch (error) {
-        console.error("Erro ao executar o yt-dlp:", error);
-        res.status(500).json({ success: false, error: `Falha ao obter informações do vídeo. Verifique se a URL é válida. Detalhes: ${error.message}` });
-    }
+        try {
+            console.log("Comando executado com sucesso. A processar a saída...");
+            const metadata = JSON.parse(stdout);
+
+            const formats = metadata.formats.map(f => ({
+                format_id: f.format_id,
+                ext: f.ext,
+                resolution: f.resolution || 'audio',
+                filesize: f.filesize,
+                url: f.url,
+                acodec: f.acodec,
+                vcodec: f.vcodec
+            })).filter(f => f.url && (f.vcodec !== 'none' || f.acodec !== 'none'));
+
+            const videoInfo = {
+                title: metadata.title,
+                thumbnail: metadata.thumbnail,
+                duration: metadata.duration_string,
+                formats: formats
+            };
+
+            res.json({ success: true, videoInfo });
+            console.log("Informações do vídeo enviadas com sucesso.");
+        } catch (parseError) {
+            console.error("Erro ao processar a saída JSON do yt-dlp:", parseError);
+            res.status(500).json({ success: false, error: 'Falha ao processar a resposta do serviço de vídeo.' });
+        }
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
