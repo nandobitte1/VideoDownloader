@@ -76,4 +76,14 @@ app.post('/api/video-info', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor iniciado com sucesso na porta ${PORT}.`);
 });
+```
+
+### Passo 2: Envie a Versão Final para o GitHub
+
+No seu terminal, execute estes três comandos. Isto irá garantir que a versão definitiva seja implementada.
+
+```bash
+git add .
+git commit -m "Implementando a versão final e estável do servidor"
+git push origin master
 
