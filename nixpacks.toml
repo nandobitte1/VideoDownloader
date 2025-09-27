@@ -1,10 +1,2 @@
-# Define as fases de construção do ambiente
 [phases.setup]
-# Pede ao Railway para instalar pacotes do sistema Nix
-# Isto garante que o Python e o yt-dlp estarão disponíveis
-nixPkgs = ["python3", "yt-dlp"]
-
-# Deixamos o Railway tratar das fases de 'install' e 'start' automaticamente
-# Ele irá encontrar o package.json e executar 'npm install' e depois 'npm start'
-
-
+nixPkgs = ["python3"]

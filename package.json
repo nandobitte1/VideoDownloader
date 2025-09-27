@@ -1,19 +1,19 @@
 {
-    "name": "video-downloader-server",
-    "version": "1.0.0",
-    "description": "Servidor para baixar vídeos.",
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js"
-    },
-    "dependencies": {
-        "cors": "^2.8.5",
-        "express": "^4.19.2"
-    },
-    "author": "",
-    "license": "ISC",
-    "engines": {
-        "node": ">=18.0.0"
-    }
+  "name": "video-downloader-server",
+  "version": "1.0.0",
+  "description": "Servidor para baixar vídeos.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "yt-dlp-exec": "^2.0.5"
+  },
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
-
