@@ -4,10 +4,7 @@
 # Isto garante que o Python e o yt-dlp estarão disponíveis
 nixPkgs = ["python3", "yt-dlp"]
 
-[phases.install]
-cmds = ["npm install"]
+# Deixamos o Railway tratar das fases de 'install' e 'start' automaticamente
+# Ele irá encontrar o package.json e executar 'npm install' e depois 'npm start'
 
-[phases.start]
-# Corrigido para apontar diretamente para o nosso ficheiro de servidor
-cmd = "node server.js"
 
