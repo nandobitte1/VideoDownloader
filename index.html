@@ -80,8 +80,8 @@
         const btnText = document.getElementById('btn-text');
         const btnIcon = document.getElementById('btn-icon');
         
-        // Define a URL do servidor. Mude aqui se for hospedar em outro lugar.
-        const API_URL = 'videodownloader-production-c2f7.up.railway.app'; // <<< MUDE ESTA LINHA
+        // Define a URL do servidor.
+        const API_URL = 'https://videodownloader-production-c2f7.up.railway.app';
 
         downloadBtn.addEventListener('click', async () => {
             const url = videoUrlInput.value.trim();
@@ -103,8 +103,14 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Erro desconhecido do servidor.');
+                    let errorMsg = 'Erro desconhecido do servidor.';
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.details || errorData.error || 'Falha ao buscar informações.';
+                    } catch (e) {
+                         errorMsg = `O servidor respondeu com um erro: ${response.statusText}`;
+                    }
+                    throw new Error(errorMsg);
                 }
                 
                 const videoInfo = await response.json();
@@ -112,7 +118,12 @@
 
             } catch (error) {
                 console.error("Fetch error:", error);
-                showStatus(error.message, 'error');
+                // Tenta analisar se o erro é de JSON
+                if (error instanceof SyntaxError) {
+                    showStatus('O servidor enviou uma resposta inválida. Tente novamente.', 'error');
+                } else {
+                    showStatus(error.message, 'error');
+                }
             } finally {
                 // Reabilita o botão
                 setButtonLoading(false);
@@ -157,52 +168,37 @@
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
         }
 
-        function showDownloadOptions(videoInfo) {
-            // Filtra e ordena os formatos. Vídeos primeiro, depois áudio, e por resolução.
-            const sortedFormats = videoInfo.formats
-                .filter(f => f.vcodec !== 'none' && f.resolution) // Apenas formatos de vídeo com resolução
-                .sort((a, b) => {
-                    const resA = parseInt(a.resolution.split('x')[1]);
-                    const resB = parseInt(b.resolution.split('x')[1]);
-                    return resB - resA;
-                });
-            
-            // Pega o melhor formato de áudio separado, se existir
-            const audioFormat = videoInfo.formats.find(f => f.vcodec === 'none' && f.acodec !== 'none');
-            
+        function showDownloadOptions(data) {
+            const { title, thumbnail, formats, originalUrl } = data;
+
+            let formatButtons = '';
+            if (formats && formats.length > 0) {
+                 formatButtons = formats.map(format => `
+                    <a href="${format.url}"
+                       target="_blank" 
+                       download
+                       class="flex justify-between items-center bg-gray-600 hover:bg-gray-500 p-3 rounded-md transition duration-300">
+                        <div>
+                            <span class="font-semibold text-white">${format.quality}</span>
+                            <span class="text-sm text-gray-400 ml-2">${format.ext.toUpperCase()}</span>
+                        </div>
+                        <div class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md">
+                            <i class="fas fa-download mr-1"></i> Baixar
+                        </div>
+                    </a>
+                `).join('');
+            } else {
+                formatButtons = '<p class="text-gray-400">Nenhum formato de vídeo MP4 encontrado.</p>';
+            }
+           
             statusDiv.innerHTML = `
                 <div class="bg-gray-700 p-4 rounded-lg text-left animate-fade-in">
                     <div class="flex flex-col sm:flex-row gap-4">
-                        <img src="${videoInfo.thumbnail}" alt="Thumbnail do vídeo" class="w-full sm:w-1/3 rounded-md object-cover" onerror="this.src='https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail'">
+                        <img src="${thumbnail}" alt="Thumbnail do vídeo" class="w-full sm:w-1/3 rounded-md object-cover" onerror="this.src='https://placehold.co/600x400/1a202c/ffffff?text=Thumbnail'">
                         <div class="flex-grow">
-                            <h3 class="font-bold text-lg mb-3">${videoInfo.title}</h3>
-                            <div class="space-y-2">
-                                ${sortedFormats.map(format => `
-                                    <a href="${API_URL}/api/download?url=${encodeURIComponent(videoInfo.originalUrl)}&formatId=${format.format_id}" 
-                                       target="_blank" 
-                                       class="flex justify-between items-center bg-gray-600 hover:bg-gray-500 p-3 rounded-md transition duration-300">
-                                        <div>
-                                            <span class="font-semibold text-white">${format.resolution.split('x')[1]}p</span>
-                                            <span class="text-sm text-gray-400 ml-2">${format.ext.toUpperCase()} - ${format.filesize ? formatBytes(format.filesize) : 'N/A'}</span>
-                                        </div>
-                                        <div class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md">
-                                            <i class="fas fa-download mr-1"></i> Baixar
-                                        </div>
-                                    </a>
-                                `).join('')}
-                                ${audioFormat ? `
-                                    <a href="${API_URL}/api/download?url=${encodeURIComponent(videoInfo.originalUrl)}&formatId=${audioFormat.format_id}" 
-                                       target="_blank" 
-                                       class="flex justify-between items-center bg-gray-600 hover:bg-gray-500 p-3 rounded-md transition duration-300">
-                                        <div>
-                                            <span class="font-semibold text-white">Áudio</span>
-                                            <span class="text-sm text-gray-400 ml-2">${audioFormat.ext.toUpperCase()} - ${audioFormat.filesize ? formatBytes(audioFormat.filesize) : 'N/A'}</span>
-                                        </div>
-                                        <div class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-1 px-3 rounded-md">
-                                            <i class="fas fa-music mr-1"></i> Baixar MP3
-                                        </div>
-                                    </a>
-                                ` : ''}
+                            <h3 class="font-bold text-lg mb-3">${title}</h3>
+                            <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                ${formatButtons}
                             </div>
                         </div>
                     </div>
@@ -219,10 +215,24 @@
             .animate-fade-in {
                 animation: fade-in 0.5s ease-out forwards;
             }
+            /* Custom scrollbar for download options */
+            .max-h-48::-webkit-scrollbar {
+                width: 8px;
+            }
+            .max-h-48::-webkit-scrollbar-track {
+                background: #2d3748; /* bg-gray-700 */
+                border-radius: 10px;
+            }
+            .max-h-48::-webkit-scrollbar-thumb {
+                background: #4a5568; /* bg-gray-600 */
+                border-radius: 10px;
+            }
+            .max-h-48::-webkit-scrollbar-thumb:hover {
+                background: #718096; /* bg-gray-500 */
+            }
         `;
         document.head.appendChild(style);
 
     </script>
 </body>
 </html>
-
